@@ -1,0 +1,12 @@
+[package]
+name = "qir-rust-interp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+regex = "1.11.1"
+ndarray = "0.16.1"
+num-complex = "0.4.6"
+clap = { version = "4.5.23", features = ["derive"] }
+thiserror = "2.0.7"
+rand = "0.8.5"
