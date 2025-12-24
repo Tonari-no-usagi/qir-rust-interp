@@ -14,6 +14,10 @@ impl<'a> QisBridge<'a> {
         Self { simulator, memory }
     }
 
+    pub fn get_result_value(&self, addr: usize) -> bool {
+        self.memory.get_result_value(addr)
+    }
+
     pub fn call_qis(&mut self, func_name: &str, args: Vec<usize>) -> Result<()> {
         match func_name {
             "__quantum__qis__h__body" => {
@@ -82,9 +86,38 @@ impl<'a> QisBridge<'a> {
                 self.simulator.apply_cz(control, target)?;
                 Ok(())
             }
+            "__quantum__qis__rx__body" => {
+                let theta = f64::from_bits(args[0] as u64);
+                let qubit = self.memory.get_qubit(args[1]);
+                self.simulator.apply_rx(qubit, theta)?;
+                Ok(())
+            }
+            "__quantum__qis__ry__body" => {
+                let theta = f64::from_bits(args[0] as u64);
+                let qubit = self.memory.get_qubit(args[1]);
+                self.simulator.apply_ry(qubit, theta)?;
+                Ok(())
+            }
+            "__quantum__qis__rz__body" => {
+                let theta = f64::from_bits(args[0] as u64);
+                let qubit = self.memory.get_qubit(args[1]);
+                self.simulator.apply_rz(qubit, theta)?;
+                Ok(())
+            }
             "__quantum__qis__mz__body" => {
                 let qubit = self.memory.get_qubit(args[0]);
-                let _res = self.simulator.measure(qubit)?;
+                let result_addr = args[1]; // %Result* のポインタ
+                let res = self.simulator.measure(qubit)?;
+                self.memory.set_result_value(result_addr, res);
+                Ok(())
+            }
+            "__quantum__qis__read_result__body" => {
+                let result_addr = args[0];
+                let val = self.memory.get_result_value(result_addr);
+                // QIRの実行結果として真偽値を「返す」必要があるが、
+                // 現在のパーサー構造では戻り値の処理が簡略化されている。
+                // いったんログを出力し、今後のパーサー拡張で利用する。
+                println!("Reading result from {}: {}", result_addr, val);
                 Ok(())
             }
             _ => {

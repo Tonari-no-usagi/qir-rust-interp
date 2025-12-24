@@ -2,37 +2,29 @@ use std::collections::HashMap;
 
 /// QIRの不透明ポインタ (%Qubit*, %Result*) と内部インデックスのマッピングを管理する
 pub struct QirMemory {
-    qubit_map: HashMap<usize, usize>,
-    result_map: HashMap<usize, usize>,
-    next_qubit_id: usize,
-    next_result_id: usize,
+    /// 測定結果の値を保持 (%Result* の位置に bool を格納)
+    result_values: HashMap<usize, bool>,
 }
 
 impl QirMemory {
     pub fn new() -> Self {
         Self {
-            qubit_map: HashMap::new(),
-            result_map: HashMap::new(),
-            next_qubit_id: 0,
-            next_result_id: 0,
+            result_values: HashMap::new(),
         }
     }
 
-    /// ポインタアドレス（またはQIR上のID）から内部量子ビットインデックスを取得
+    /// ポインタアドレスから内部量子ビットインデックスを取得
     pub fn get_qubit(&mut self, addr: usize) -> usize {
-        *self.qubit_map.entry(addr).or_insert_with(|| {
-            let id = self.next_qubit_id;
-            self.next_qubit_id += 1;
-            id
-        })
+        addr
     }
 
-    /// ポインタアドレスから内部結果インデックスを取得
-    pub fn get_result(&mut self, addr: usize) -> usize {
-        *self.result_map.entry(addr).or_insert_with(|| {
-            let id = self.next_result_id;
-            self.next_result_id += 1;
-            id
-        })
+    /// ポインタアドレス（または結果ポインタのアドレス）に測定値を保存
+    pub fn set_result_value(&mut self, addr: usize, value: bool) {
+        self.result_values.insert(addr, value);
+    }
+
+    /// 測定値を取得
+    pub fn get_result_value(&self, addr: usize) -> bool {
+        *self.result_values.get(&addr).unwrap_or(&false)
     }
 }

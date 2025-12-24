@@ -81,6 +81,36 @@ impl Simulator {
         Ok(())
     }
 
+    /// Rxゲートを適用する
+    pub fn apply_rx(&mut self, target: usize, theta: f64) -> Result<()> {
+        let (sin, cos) = (theta / 2.0).sin_cos();
+        let matrix = [
+            [Complex64::new(cos, 0.0), Complex64::new(0.0, -sin)],
+            [Complex64::new(0.0, -sin), Complex64::new(cos, 0.0)],
+        ];
+        self.apply_gate_1q(target, matrix)
+    }
+
+    /// Ryゲートを適用する
+    pub fn apply_ry(&mut self, target: usize, theta: f64) -> Result<()> {
+        let (sin, cos) = (theta / 2.0).sin_cos();
+        let matrix = [
+            [Complex64::new(cos, 0.0), Complex64::new(-sin, 0.0)],
+            [Complex64::new(sin, 0.0), Complex64::new(cos, 0.0)],
+        ];
+        self.apply_gate_1q(target, matrix)
+    }
+
+    /// Rzゲートを適用する
+    pub fn apply_rz(&mut self, target: usize, theta: f64) -> Result<()> {
+        let (sin, cos) = (theta / 2.0).sin_cos();
+        let matrix = [
+            [Complex64::new(cos, -sin), Complex64::new(0.0, 0.0)],
+            [Complex64::new(0.0, 0.0), Complex64::new(cos, sin)],
+        ];
+        self.apply_gate_1q(target, matrix)
+    }
+
     /// 測定を行う
     pub fn measure(&mut self, qubit: usize) -> Result<bool> {
         if qubit >= self.num_qubits {
@@ -97,7 +127,8 @@ impl Simulator {
         }
 
         let mut rng = rand::thread_rng();
-        let result = rng.gen_bool(1.0 - p0);
+        let p_true = (1.0 - p0).clamp(0.0, 1.0);
+        let result = rng.gen_bool(p_true);
 
         // 状態の崩壊と正規化
         let p = if result { 1.0 - p0 } else { p0 };

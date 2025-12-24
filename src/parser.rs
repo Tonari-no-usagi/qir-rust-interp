@@ -15,18 +15,67 @@ impl QirParser {
     }
 
     pub fn run_interpreter(&self, bridge: &mut crate::qis_bridge::QisBridge) -> Result<()> {
-        // call void @__quantum__qis__... または %res = call %Result* @...
-        // 戻り値がある場合とない場合の両方に対応
-        let re_call = Regex::new(r"(?:%\w+\s*=\s*)?call\s+(?:void|%Result\*)\s+@(?P<func>__quantum__qis__[^\s(]+)\((?P<args>[^)]*)\)").unwrap();
+        let mut labels = std::collections::HashMap::new();
+        // 1. ラベルの事前スキャン
+        for (i, line) in self.lines.iter().enumerate() {
+            let line = line.trim();
+            if line.ends_with(':') {
+                let label_name = &line[..line.len()-1];
+                labels.insert(label_name.to_string(), i);
+            }
+        }
 
-        for line in &self.lines {
+        let re_call = Regex::new(r"(?:(?P<ret>%\w+)\s*=\s*)?call\s+(?:void|i1|%Result\*)\s+@(?P<func>(?:__quantum__qis__|__quantum__rt__)[^\s(]+)\((?P<args>[^)]*)\)").unwrap();
+        let re_br_cond = Regex::new(r"br\s+i1\s+(?P<cond>%\w+),\s+label\s+%(?P<then>\w+),\s+label\s+%(?P<else>\w+)").unwrap();
+        let re_br_uncond = Regex::new(r"br\s+label\s+%(?P<dest>\w+)").unwrap();
+        let re_assign = Regex::new(r"(?P<var>%\w+)\s*=\s*(?P<val>.*)").unwrap();
+
+        let mut pc = 0;
+        let mut variables: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
+
+        while pc < self.lines.len() {
+            let line = self.lines[pc].trim();
+            
+            if line.is_empty() || line.ends_with(':') || line.starts_with(';') {
+                pc += 1;
+                continue;
+            }
+
+            // 条件分岐
+            if let Some(caps) = re_br_cond.captures(line) {
+                let cond_var = &caps["cond"];
+                let is_true = *variables.get(cond_var).unwrap_or(&false);
+                let dest = if is_true { &caps["then"] } else { &caps["else"] };
+                pc = *labels.get(dest).ok_or_else(|| crate::error::QirError::ParseError(format!("Label not found: {}", dest)))?;
+                continue;
+            }
+            
+            // 無条件分岐
+            if let Some(caps) = re_br_uncond.captures(line) {
+                let dest = &caps["dest"];
+                pc = *labels.get(dest).ok_or_else(|| crate::error::QirError::ParseError(format!("Label not found: {}", dest)))?;
+                continue;
+            }
+
+            // 関数呼び出し
             if let Some(caps) = re_call.captures(line) {
                 let func_name = &caps["func"];
                 let args_str = &caps["args"];
-                
                 let args = self.parse_args(args_str);
-                bridge.call_qis(func_name, args)?;
+
+                // 特殊処理: read_result は値を返す
+                if func_name == "__quantum__qis__read_result__body" {
+                    if let Some(ret_var) = caps.name("ret") {
+                        let result_addr = args[0];
+                        let val = bridge.get_result_value(result_addr);
+                        variables.insert(ret_var.as_str().to_string(), val);
+                    }
+                } else {
+                    bridge.call_qis(func_name, args)?;
+                }
             }
+
+            pc += 1;
         }
         Ok(())
     }
@@ -35,13 +84,23 @@ impl QirParser {
         args_str.split(',')
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
-            .map(|s| self.extract_id(s))
+            .map(|s| self.extract_value(s))
             .collect()
     }
 
-    fn extract_id(&self, s: &str) -> usize {
+    fn extract_value(&self, s: &str) -> usize {
+        let s = s.trim();
         if s.contains("null") {
             0
+        } else if s.contains("double") {
+            // double 1.570796e+00 のような形式
+            let parts: Vec<&str> = s.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let val: f64 = parts[1].parse().unwrap_or(0.0);
+                val.to_bits() as usize
+            } else {
+                0
+            }
         } else if s.contains("inttoptr") {
             // 例: %Qubit* inttoptr (i64 1 to %Qubit*)
             let re_digits = Regex::new(r"i64\s+(\d+)").unwrap();
@@ -51,9 +110,14 @@ impl QirParser {
                 0
             }
         } else {
-            // 数値変換を試みる
-            s.chars().filter(|c| c.is_digit(10)).collect::<String>()
-                .parse().unwrap_or(0)
+            // 数値変換を試みる (i64 0 など)
+            // スペースで分割して最後の要素に注目し、数値以外の文字を排除
+            s.split_whitespace()
+                .last()
+                .map(|p| p.chars().filter(|c| c.is_digit(10) || *c == '.').collect::<String>())
+                .and_then(|s| s.parse::<f64>().ok())
+                .map(|f| f as usize)
+                .unwrap_or(0)
         }
     }
 }
