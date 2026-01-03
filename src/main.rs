@@ -1,15 +1,11 @@
-mod error;
-mod memory;
-mod simulator;
-mod parser;
-mod qis_bridge;
+use clap::Parser as ClapParser;
+use qir_rust_interp::parser::QirParser;
+use qir_rust_interp::simulator::Simulator;
+use qir_rust_interp::memory::QirMemory;
+use qir_rust_interp::qis_bridge::QisBridge;
+use qir_rust_interp::error;
 
-use clap::Parser;
-use crate::parser::QirParser;
-use crate::simulator::Simulator;
-use crate::memory::QirMemory;
-
-#[derive(Parser, Debug)]
+#[derive(ClapParser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// 入力するQIRファイル (.ll または .bc)
@@ -28,7 +24,7 @@ fn main() -> error::Result<()> {
 
     let mut simulator = Simulator::new(args.qubits);
     let mut memory = QirMemory::new();
-    let mut bridge = qis_bridge::QisBridge::new(&mut simulator, &mut memory);
+    let mut bridge = QisBridge::new(&mut simulator, &mut memory);
     
     println!("Simulator initialized with {} qubits.", args.qubits);
     println!("Starting execution...");

@@ -63,15 +63,13 @@ impl QirParser {
                 let args_str = &caps["args"];
                 let args = self.parse_args(args_str);
 
-                // 特殊処理: read_result は値を返す
-                if func_name == "__quantum__qis__read_result__body" {
-                    if let Some(ret_var) = caps.name("ret") {
-                        let result_addr = args[0];
-                        let val = bridge.get_result_value(result_addr);
+                let result = bridge.call_qis(func_name, args)?;
+                
+                // 戻り値がある場合は変数に格納
+                if let Some(ret_var) = caps.name("ret") {
+                    if let Some(val) = result {
                         variables.insert(ret_var.as_str().to_string(), val);
                     }
-                } else {
-                    bridge.call_qis(func_name, args)?;
                 }
             }
 

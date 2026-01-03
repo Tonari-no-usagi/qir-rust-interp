@@ -16,6 +16,7 @@
   - Rotation Gates: `Rx`, `Ry`, `Rz` (Any angle supported)
   - 2Q Gates: `CNOT`, `CZ`
   - Measurement: Includes probabilistic state collapse and result storage for classical control.
+- **Python Binding Support**: Seamlessly integrate with Python workflows via `PyO3`.
 - **Instant Execution**: Directly interprets textual LLVM IR (`.ll`) files.
 
 ---
@@ -59,13 +60,23 @@ Demonstrates arbitrary rotation gates (Rx, Ry, Rz).
 cargo run -- samples/rotation.ll --qubits 1
 ```
 
+### 3. Python Integration
+You can also use this interpreter directly from Python.
+
+```python
+import qir_rust_interp
+results = qir_rust_interp.run_qir("samples/bell.ll", qubits=2)
+print(results) # e.g., {"00": 1.0}
+```
+*Note: Ensure the built `.pyd` (Windows) or `.so` (Linux/macOS) file is in your Python path.*
+
 ---
 
 ## 🗺 Future Roadmap
 
 - [x] **Classical Control**: Support for `br` instructions (conditional branching) based on measurement results.
 - [x] **More Gates**: Support for arbitrary rotation gates (Rx, Ry, Rz).
-- [ ] **Python Binding**: Integration with Python via `PyO3`.
+- [x] **Python Binding**: Integration with Python via `PyO3`.
 - [ ] **WASM Support**: Execution in the browser via WebAssembly.
 - [ ] **Visualization**: Add a simple circuit diagram or state-sphere visualization to the output.
 
